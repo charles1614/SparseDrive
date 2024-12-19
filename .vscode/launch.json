@@ -1,0 +1,23 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Python: tools/train.py with sparseddive_small_stage1.py",
+      "type": "python",
+      "request": "launch",
+      "program": "${workspaceFolder}/tools/train.py",
+      "args": [
+        "projects/configs/sparsedrive_small_stage1.py",
+        "--deterministic",
+        "--gpus", "1"
+      ],
+      "env": {
+        "PYTHONPATH": "${workspaceFolder}",  // Set PYTHONPATH if needed
+        "CUDA_VISIBLE_DEVICES": "0"  // Adjust based on the GPUs you're using
+      },
+      "justMyCode": false,  // Set to false if you want to debug external libraries too
+      "console": "integratedTerminal",  // Use the integrated terminal for output
+      "stopOnEntry": false  // Set to true to stop immediately at the entry point
+    }
+  ]
+}
