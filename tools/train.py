@@ -26,6 +26,8 @@ from datetime import timedelta
 
 import cv2
 
+import torch.cuda.nvtx as nvtx  # Import NVTX library
+
 cv2.setNumThreads(8)
 
 
@@ -260,15 +262,22 @@ def main():
     meta["seed"] = args.seed
     meta["exp_name"] = osp.basename(args.config)
 
+    # Model Initialization
+    nvtx.range_push("Model Initialization")
     model = build_detector(
         cfg.model, train_cfg=cfg.get("train_cfg"), test_cfg=cfg.get("test_cfg")
     )
     model.init_weights()
+    nvtx.range_pop()
     logger.info(f"Model:\n{model}")
 
     cfg.data.train.work_dir = cfg.work_dir
     cfg.data.val.work_dir = cfg.work_dir
+
+    # Dataset preparation
+    nvtx.range_push("Dataset Preparation")
     datasets = [build_dataset(cfg.data.train)]
+    nvtx.range_pop()
 
     if len(cfg.workflow) == 2:
         val_dataset = copy.deepcopy(cfg.data.val)
@@ -292,6 +301,8 @@ def main():
         )
     # add an attribute for visualization convenience
     model.CLASSES = datasets[0].CLASSES
+    # Training
+    nvtx.range_push("Training Process")
     if hasattr(cfg, "plugin"):
         custom_train_model(
             model,
@@ -312,10 +323,13 @@ def main():
             timestamp=timestamp,
             meta=meta,
         )
+    nvtx.range_pop()
 
 
 if __name__ == "__main__":
+    nvtx.range_push("Main Function")
     torch.multiprocessing.set_start_method(
         "fork"
     )  # use fork workers_per_gpu can be > 1
     main()
+    nvtx.range_pop()

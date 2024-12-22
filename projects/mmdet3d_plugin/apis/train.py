@@ -8,7 +8,9 @@ from .mmdet_train import custom_train_detector
 # from mmseg.apis import train_segmentor
 from mmdet.apis import train_detector
 
+import torch.cuda.nvtx as nvtx  # Import NVTX for profiling
 
+nvtx.range_push("Custom Train Model")  # Start NVTX marker
 def custom_train_model(
     model,
     dataset,
@@ -35,6 +37,7 @@ def custom_train_model(
             timestamp=timestamp,
             meta=meta,
         )
+nvtx.range_pop()  # End NVTX marker
 
 
 def train_model(

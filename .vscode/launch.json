@@ -1,6 +1,28 @@
 {
   "version": "0.2.0",
   "configurations": [
+        {
+          "name": "Launch Distributed Training Python",
+          "type": "python",
+          "request": "launch",
+          "program": "${workspaceFolder}/tools/train.py", // Path to the Python script (train.py)
+          "args": [
+            "projects/configs/sparsedrive_small_stage1.py", // Path to your config file
+            "--deterministic" // Additional arguments you want to pass
+          ],
+          "env": {
+            "PYTHONPATH": "${workspaceFolder}", // Set PYTHONPATH to your workspace
+            "PORT": "28651", // Master port for distributed training
+            "CUDA_VISIBLE_DEVICES": "0" // Adjust based on your GPU setup (optional)
+          },
+          "console": "integratedTerminal", // Use the integrated terminal in VSCode
+          "cwd": "${workspaceFolder}", // Current working directory
+          "debugOptions": [
+            "RedirectOutput"
+          ],
+          "subProcess": true, // Allow debugging of subprocesses (e.g., distributed processes)
+          "justMyCode": false, // Allow stepping into library code for deeper debugging
+    },
     {
       "name": "Python: tools/train.py with sparseddive_small_stage1.py",
       "type": "python",
@@ -9,15 +31,16 @@
       "args": [
         "projects/configs/sparsedrive_small_stage1.py",
         "--deterministic",
-        "--gpus", "1"
+        "--gpus",
+        "1"
       ],
       "env": {
-        "PYTHONPATH": "${workspaceFolder}",  // Set PYTHONPATH if needed
-        "CUDA_VISIBLE_DEVICES": "0"  // Adjust based on the GPUs you're using
+        "PYTHONPATH": "${workspaceFolder}", // Set PYTHONPATH if needed
+        "CUDA_VISIBLE_DEVICES": "0" // Adjust based on the GPUs you're using
       },
-      "justMyCode": false,  // Set to false if you want to debug external libraries too
-      "console": "integratedTerminal",  // Use the integrated terminal for output
-      "stopOnEntry": false  // Set to true to stop immediately at the entry point
+      "justMyCode": false, // Set to false if you want to debug external libraries too
+      "console": "integratedTerminal", // Use the integrated terminal for output
+      "stopOnEntry": false // Set to true to stop immediately at the entry point
     }
   ]
 }
