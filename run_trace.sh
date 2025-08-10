@@ -171,9 +171,45 @@ run_stage1() {
     print_info "输出文件: ${output_name}.nsys-rep"
     
     # 运行Stage1 trace
-    print_info "创建临时启动脚本并运行trace..."
+    print_info "创建临时配置文件并运行trace..."
     
-    # 运行trace - 使用自定义JSON配置，添加Python backtrace
+    # 创建临时配置文件，使用Python脚本安全修改
+    local temp_config="/tmp/stage1_trace_config_${timestamp}.py"
+    local python_script="/tmp/modify_config_${timestamp}.py"
+    
+    # 创建Python脚本来修改配置
+    cat > "$python_script" << 'EOF'
+import re
+import sys
+
+def modify_config(input_file, output_file):
+    with open(input_file, 'r') as f:
+        content = f.read()
+    
+    # 使用正则表达式安全替换workers_per_gpu
+    # 匹配: workers_per_gpu=batch_size,
+    # 替换为: workers_per_gpu=0,  # Set to 0 for profiling
+    pattern = r'workers_per_gpu\s*=\s*batch_size\s*,'
+    replacement = 'workers_per_gpu=0,  # Set to 0 for profiling'
+    
+    modified_content = re.sub(pattern, replacement, content)
+    
+    with open(output_file, 'w') as f:
+        f.write(modified_content)
+    
+    print(f"Configuration modified: {input_file} -> {output_file}")
+
+if __name__ == "__main__":
+    if len(sys.argv) != 3:
+        print("Usage: python script.py input_config output_config")
+        sys.exit(1)
+    
+    modify_config(sys.argv[1], sys.argv[2])
+EOF
+    
+    # 使用Python脚本修改配置
+    python3 "$python_script" "$config_file" "$temp_config"
+    
     print_info "启动nsys profile..."
     
     nsys profile \
@@ -184,7 +220,10 @@ run_stage1() {
         --delay=15 \
         --duration=30 \
         --force-overwrite=true \
-        bash -lc 'cd /workspace/SparseDrive && conda run -n sparsedrive bash -lc "PYTHONPATH=$PWD CUDA_VISIBLE_DEVICES=0 bash ./tools/dist_train.sh '"$config_file"' 1 --deterministic"'
+        bash -lc 'cd /workspace/SparseDrive && conda run -n sparsedrive bash -lc "PYTHONPATH=$PWD CUDA_VISIBLE_DEVICES=0 bash ./tools/dist_train.sh '"$temp_config"' 1 --deterministic"'
+    
+    # 清理临时文件
+    rm -f "$temp_config" "$python_script"
     
     if [ $? -eq 0 ]; then
         print_success "Stage1 Trace完成"
@@ -221,9 +260,45 @@ run_stage2() {
     print_info "输出文件: ${output_name}.nsys-rep"
     
     # 运行Stage2 trace
-    print_info "创建临时启动脚本并运行trace..."
+    print_info "创建临时配置文件并运行trace..."
     
-    # 运行trace - 使用自定义JSON配置，添加Python backtrace
+    # 创建临时配置文件，使用Python脚本安全修改
+    local temp_config="/tmp/stage2_trace_config_${timestamp}.py"
+    local python_script="/tmp/modify_config_stage2_${timestamp}.py"
+    
+    # 创建Python脚本来修改配置
+    cat > "$python_script" << 'EOF'
+import re
+import sys
+
+def modify_config(input_file, output_file):
+    with open(input_file, 'r') as f:
+        content = f.read()
+    
+    # 使用正则表达式安全替换workers_per_gpu
+    # 匹配: workers_per_gpu=batch_size,
+    # 替换为: workers_per_gpu=0,  # Set to 0 for profiling
+    pattern = r'workers_per_gpu\s*=\s*batch_size\s*,'
+    replacement = 'workers_per_gpu=0,  # Set to 0 for profiling'
+    
+    modified_content = re.sub(pattern, replacement, content)
+    
+    with open(output_file, 'w') as f:
+        f.write(modified_content)
+    
+    print(f"Configuration modified: {input_file} -> {output_file}")
+
+if __name__ == "__main__":
+    if len(sys.argv) != 3:
+        print("Usage: python script.py input_config output_config")
+        sys.exit(1)
+    
+    modify_config(sys.argv[1], sys.argv[2])
+EOF
+    
+    # 使用Python脚本修改配置
+    python3 "$python_script" "$config_file" "$temp_config"
+    
     print_info "启动nsys profile..."
     
     nsys profile \
@@ -234,7 +309,10 @@ run_stage2() {
         --delay=15 \
         --duration=30 \
         --force-overwrite=true \
-        bash -lc 'cd /workspace/SparseDrive && conda run -n sparsedrive bash -lc "PYTHONPATH=$PWD CUDA_VISIBLE_DEVICES=0 bash ./tools/dist_train.sh '"$config_file"' 1 --deterministic"'
+        bash -lc 'cd /workspace/SparseDrive && conda run -n sparsedrive bash -lc "PYTHONPATH=$PWD CUDA_VISIBLE_DEVICES=0 bash ./tools/dist_train.sh '"$temp_config"' 1 --deterministic"'
+    
+    # 清理临时文件
+    rm -f "$temp_config" "$python_script"
     
     if [ $? -eq 0 ]; then
         print_success "Stage2 Trace完成"
