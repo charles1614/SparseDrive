@@ -26,7 +26,28 @@ from datetime import timedelta
 
 import cv2
 
-import torch.cuda.nvtx as nvtx  # Import NVTX library
+# NVTX: provide tolerant import (fallback to no-op stub when CUDA unavailable or import fails)
+try:
+    if torch.cuda.is_available():
+        import torch.cuda.nvtx as nvtx  # type: ignore
+    else:
+        class _NvtxStub:  # pragma: no cover - simple no-op stub
+            def range_push(self, *args, **kwargs):
+                pass
+
+            def range_pop(self, *args, **kwargs):
+                pass
+
+        nvtx = _NvtxStub()  # type: ignore
+except Exception:  # pragma: no cover - safety net
+    class _NvtxStub:  # simple no-op stub
+        def range_push(self, *args, **kwargs):
+            pass
+
+        def range_pop(self, *args, **kwargs):
+            pass
+
+    nvtx = _NvtxStub()  # type: ignore
 
 cv2.setNumThreads(8)
 

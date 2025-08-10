@@ -3,7 +3,10 @@
 *.pth
 *.whl
 *.swp
+requirement.txt
 
+mmcv-1.7.2/
+nsys_reports/
 data/
 ckpt/
 work_dirs*/

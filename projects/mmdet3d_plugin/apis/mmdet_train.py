@@ -13,6 +13,7 @@ from mmcv.runner import (
     build_optimizer,
     build_runner,
     get_dist_info,
+    Hook,  # for NVTX per-iter hook
 )
 from mmcv.utils import build_from_cfg
 from mmdet.core import EvalHook
@@ -27,6 +28,17 @@ from projects.mmdet3d_plugin.core.evaluation.eval_hooks import (
 from projects.mmdet3d_plugin.datasets import custom_build_dataset
 import torch.cuda.nvtx as nvtx  # Import NVTX for profiling
 
+
+@HOOKS.register_module()
+class NVTXIterHook(Hook):
+    def before_train_iter(self, runner):
+        if torch.cuda.is_available():
+            nvtx.range_push(f"train_iter {runner.iter}")
+
+    def after_train_iter(self, runner):
+        if torch.cuda.is_available():
+            nvtx.range_pop()
+
 def custom_train_detector(
     model,
     dataset,
@@ -38,8 +50,8 @@ def custom_train_detector(
 ):
     logger = get_root_logger(cfg.log_level)
 
-    # Prepare data loaders
-    nvtx.range_push("Data Loader Preparation")
+    # Data loader build
+    nvtx.range_push("DataLoader: Build Dataloaders")
     dataset = dataset if isinstance(dataset, (list, tuple)) else [dataset]
     if "imgs_per_gpu" in cfg.data:
         logger.warning(
@@ -79,8 +91,8 @@ def custom_train_detector(
     ]
     nvtx.range_pop()
 
-    # Put model on GPUs
-    nvtx.range_push("Model Initialization")
+    # Put model on GPUs / Wrap
+    nvtx.range_push("Model: To CUDA + Wrap (DP/DDP)")
     if distributed:
         find_unused_parameters = cfg.get("find_unused_parameters", False)
         model = MMDistributedDataParallel(
@@ -96,7 +108,7 @@ def custom_train_detector(
     nvtx.range_pop()
 
     # Build runner
-    nvtx.range_push("Runner Setup")
+    nvtx.range_push("Runner: Build + Optimizer")
     optimizer = build_optimizer(model, cfg.optimizer)
     if "runner" not in cfg:
         cfg.runner = {
@@ -125,8 +137,8 @@ def custom_train_detector(
     runner.timestamp = timestamp
     nvtx.range_pop()
 
-    # FP16 setting
-    nvtx.range_push("FP16/Optimizer Configuration")
+    # FP16 / Optimizer config
+    nvtx.range_push("Runner: FP16/Optimizer Config")
     fp16_cfg = cfg.get("fp16", None)
     if fp16_cfg is not None:
         optimizer_config = Fp16OptimizerHook(
@@ -139,7 +151,7 @@ def custom_train_detector(
     nvtx.range_pop()
 
     # Register hooks
-    nvtx.range_push("Hook Registration")
+    nvtx.range_push("Runner: Register Hooks")
     runner.register_training_hooks(
         cfg.lr_config,
         optimizer_config,
@@ -149,11 +161,13 @@ def custom_train_detector(
     )
     if distributed and isinstance(runner, EpochBasedRunner):
         runner.register_hook(DistSamplerSeedHook())
+    # Add per-iteration NVTX hook with lowest priority to wrap whole step
+    runner.register_hook(NVTXIterHook(), priority="VERY_LOW")
     nvtx.range_pop()
 
     # Register evaluation hooks
     if validate:
-        nvtx.range_push("Validation Setup")
+        nvtx.range_push("Eval: Build Val Dataloader + Hook")
         val_samples_per_gpu = cfg.data.val.pop("samples_per_gpu", 1)
         if val_samples_per_gpu > 1:
             cfg.data.val.pipeline = replace_ImageToTensor(
@@ -180,7 +194,7 @@ def custom_train_detector(
         nvtx.range_pop()
 
     # Run the training process
-    nvtx.range_push("Training Process")
+    nvtx.range_push("Runner: run() Iteration Loop")
     if cfg.resume_from:
         runner.resume(cfg.resume_from)
     elif cfg.load_from:
