@@ -11,6 +11,7 @@ dist_test/
 vis/
 val/
 lib/
+mmcv-1.7.2/
 
 *.egg-info
 build/
@@ -19,3 +20,9 @@ __pycache__/
 
 job_scripts/
 temp_ops/
+
+# NVTX Trace files
+*.nsys-rep
+*.sqlite
+*.qdstrm
+/tmp/nsys-report-*
