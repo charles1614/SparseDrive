@@ -1,6 +1,7 @@
 from inspect import signature
 
 import torch
+import torch.cuda.nvtx as nvtx  # Import NVTX for profiling
 
 from mmcv.runner import force_fp32, auto_fp16
 from mmcv.utils import build_from_cfg
@@ -60,6 +61,7 @@ class SparseDrive(BaseDetector):
 
     @auto_fp16(apply_to=("img",), out_fp32=True)
     def extract_feat(self, img, return_depth=False, metas=None):
+        nvtx.range_push("SparseDrive.extract_feat")
         bs = img.shape[0]
         if img.dim() == 5:  # multi-view
             num_cams = img.shape[1]
@@ -85,17 +87,23 @@ class SparseDrive(BaseDetector):
         if self.use_deformable_func:
             feature_maps = feature_maps_format(feature_maps)
         if return_depth:
+            nvtx.range_pop()
             return feature_maps, depths
+        nvtx.range_pop()
         return feature_maps
 
     @force_fp32(apply_to=("img",))
     def forward(self, img, **data):
+        nvtx.range_push("SparseDrive.forward")
         if self.training:
-            return self.forward_train(img, **data)
+            result = self.forward_train(img, **data)
         else:
-            return self.forward_test(img, **data)
+            result = self.forward_test(img, **data)
+        nvtx.range_pop()
+        return result
 
     def forward_train(self, img, **data):
+        nvtx.range_push("SparseDrive.forward_train")
         feature_maps, depths = self.extract_feat(img, True, data)
         model_outs = self.head(feature_maps, data)
         output = self.head.loss(model_outs, data)
@@ -103,20 +111,26 @@ class SparseDrive(BaseDetector):
             output["loss_dense_depth"] = self.depth_branch.loss(
                 depths, data["gt_depth"]
             )
+        nvtx.range_pop()
         return output
 
     def forward_test(self, img, **data):
+        nvtx.range_push("SparseDrive.forward_test")
         if isinstance(img, list):
-            return self.aug_test(img, **data)
+            result = self.aug_test(img, **data)
         else:
-            return self.simple_test(img, **data)
+            result = self.simple_test(img, **data)
+        nvtx.range_pop()
+        return result
 
     def simple_test(self, img, **data):
+        nvtx.range_push("SparseDrive.simple_test")
         feature_maps = self.extract_feat(img)
 
         model_outs = self.head(feature_maps, data)
         results = self.head.post_process(model_outs, data)
         output = [{"img_bbox": result} for result in results]
+        nvtx.range_pop()
         return output
 
     def aug_test(self, img, **data):

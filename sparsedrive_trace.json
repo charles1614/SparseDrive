@@ -1,0 +1,264 @@
+[
+    {
+        "domain": "SparseDrive-Core",
+        "color": "0x4CAF50",
+        "module": "projects.mmdet3d_plugin.models.sparsedrive",
+        "functions": [
+            "SparseDrive.extract_feat",
+            "SparseDrive.forward",
+            "SparseDrive.forward_train",
+            "SparseDrive.forward_test",
+            "SparseDrive.simple_test",
+            "SparseDrive.aug_test"
+        ]
+    },
+
+    {
+        "domain": "SparseDrive-Head",
+        "color": "0x2196F3",
+        "module": "projects.mmdet3d_plugin.models.sparsedrive_head",
+        "functions": [
+            "SparseDriveHead.forward",
+            "SparseDriveHead.loss",
+            "SparseDriveHead.post_process"
+        ]
+    },
+
+    {
+        "domain": "SparseDrive-Detection",
+        "color": "0xFF9800",
+        "module": "projects.mmdet3d_plugin.models.detection3d.detection3d_head",
+        "functions": [
+            "Detection3DHead.forward",
+            "Detection3DHead.loss",
+            "Detection3DHead.post_process",
+            "Detection3DHead.get_bboxes"
+        ]
+    },
+
+    {
+        "domain": "SparseDrive-Motion",
+        "color": "0x9C27B0",
+        "module": "projects.mmdet3d_plugin.models.motion.motion_planning_head",
+        "functions": [
+            "MotionPlanningHead.forward",
+            "MotionPlanningHead.loss",
+            "MotionPlanningHead.post_process",
+            "MotionPlanningHead.predict_motion",
+            "MotionPlanningHead.plan_trajectory",
+            "MotionPlanningHead.compute_loss",
+            "MotionPlanningHead.get_bboxes",
+            "MotionPlanningHead.get_trajectories"
+        ]
+    },
+
+    {
+        "domain": "SparseDrive-Map",
+        "color": "0xE91E63",
+        "module": "projects.mmdet3d_plugin.models.map.decoder",
+        "functions": [
+            "MapDecoder.forward",
+            "MapDecoder.decode_map"
+        ]
+    },
+
+    {
+        "domain": "SparseDrive-Attention",
+        "color": "0x607D8B",
+        "module": "projects.mmdet3d_plugin.models.attention",
+        "functions": [
+            "MultiHeadAttention.forward",
+            "SparseAttention.forward",
+            "CrossAttention.forward"
+        ]
+    },
+
+    {
+        "domain": "SparseDrive-Blocks",
+        "color": "0x795548",
+        "module": "projects.mmdet3d_plugin.models.blocks",
+        "functions": [
+            "TransformerBlock.forward",
+            "SparseBlock.forward",
+            "FeatureExtractor.forward"
+        ]
+    },
+
+    {
+        "domain": "SparseDrive-Instance",
+        "color": "0x00BCD4",
+        "module": "projects.mmdet3d_plugin.models.instance_bank",
+        "functions": [
+            "InstanceBank.update",
+            "InstanceBank.query",
+            "InstanceBank.add_instance",
+            "InstanceBank.get_temporal_instances",
+            "InstanceBank.update_motion_history"
+        ]
+    },
+
+    {
+        "domain": "SparseDrive-Motion-Queue",
+        "color": "0x8BC34A",
+        "module": "projects.mmdet3d_plugin.models.motion.instance_queue",
+        "functions": [
+            "InstanceQueue.push",
+            "InstanceQueue.pop",
+            "InstanceQueue.update",
+            "InstanceQueue.get_history",
+            "InstanceQueue.update_temporal"
+        ]
+    },
+
+    {
+        "domain": "SparseDrive-Motion-Decoder",
+        "color": "0xFF5722",
+        "module": "projects.mmdet3d_plugin.models.motion.decoder",
+        "functions": [
+            "MotionDecoder.forward",
+            "MotionDecoder.decode_trajectory",
+            "MotionDecoder.decode_motion",
+            "MotionDecoder.decode_planning"
+        ]
+    },
+
+    {
+        "domain": "SparseDrive-Map-Blocks",
+        "color": "0x3F51B5",
+        "module": "projects.mmdet3d_plugin.models.map.map_blocks",
+        "functions": [
+            "MapBlock.forward",
+            "MapFeatureExtractor.forward"
+        ]
+    },
+
+    {
+        "domain": "SparseDrive-GridMask",
+        "color": "0x009688",
+        "module": "projects.mmdet3d_plugin.models.grid_mask",
+        "functions": [
+            "GridMask.forward",
+            "GridMask.apply_mask"
+        ]
+    },
+
+    {
+        "domain": "SparseDrive-Motion-Target",
+        "color": "0xFF6B35",
+        "module": "projects.mmdet3d_plugin.models.motion.target",
+        "functions": [
+            "MotionTarget.forward",
+            "MotionTarget.compute_loss",
+            "MotionTarget.get_targets",
+            "MotionTarget.assign_targets"
+        ]
+    },
+
+    {
+        "domain": "PyTorch-DataLoader",
+        "color": "0xbbd6cf",
+        "module": "torch.utils.data.dataloader",
+        "functions": ["_BaseDataLoaderIter.__next__"]
+    },
+
+    {
+        "domain": "PyTorch-Autograd",
+        "color": "0xFFCDD2",
+        "module": "torch.autograd",
+        "functions": ["backward"]
+    },
+
+    {
+        "domain": "PyTorch-Functional",
+        "color": "0xE1F5FE",
+        "module": "torch.nn.functional",
+        "functions": [
+            "conv2d",
+            "linear",
+            "softmax",
+            "relu",
+            "gelu",
+            "layer_norm",
+            "batch_norm",
+            "dropout",
+            "interpolate",
+            "pad",
+            "grid_sample"
+        ]
+    },
+
+    {
+        "domain": "PyTorch-Optimizer",
+        "color": "0xF3E5F5",
+        "module": "torch.optim",
+        "functions": [
+            "Adam.step",
+            "AdamW.step",
+            "SGD.step",
+            "Optimizer.step"
+        ]
+    },
+
+    {
+        "domain": "PyTorch-Modules",
+        "color": "0xE8F5E8",
+        "module": "torch.nn.modules",
+        "functions": [
+            "Module.__call__",
+            "Linear.forward",
+            "Conv2d.forward",
+            "BatchNorm2d.forward",
+            "LayerNorm.forward",
+            "Dropout.forward",
+            "ReLU.forward",
+            "GELU.forward",
+            "Softmax.forward"
+        ]
+    },
+
+    {
+        "domain": "MMDetection-Base",
+        "color": "0xFFC107",
+        "module": "mmdet.models.detectors.base",
+        "functions": [
+            "BaseDetector.forward",
+            "BaseDetector.forward_train",
+            "BaseDetector.forward_test",
+            "BaseDetector.simple_test"
+        ]
+    },
+
+    {
+        "domain": "MMDetection-Build",
+        "color": "0xFF5722",
+        "module": "mmdet.models",
+        "functions": [
+            "build_detector",
+            "build_backbone",
+            "build_head",
+            "build_neck"
+        ]
+    },
+
+    {
+        "domain": "MMDetection-Train",
+        "color": "0x9E9E9E",
+        "module": "mmdet.apis.train",
+        "functions": [
+            "train_detector",
+            "single_gpu_train",
+            "multi_gpu_train"
+        ]
+    },
+
+    {
+        "domain": "MMCV-Runner",
+        "color": "0x607D8B",
+        "module": "mmcv.runner",
+        "functions": [
+            "EpochBasedRunner.run",
+            "EpochBasedRunner.train",
+            "EpochBasedRunner.call_hook"
+        ]
+    }
+]
