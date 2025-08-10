@@ -1,0 +1,150 @@
+# ======================================================================================
+# Dependencies
+# --------------------------------------------------------------------------------------
+# Base Image: Ubuntu 20.04 with CUDA 11.6
+# PyTorch: 1.13.0+cu116
+# Torchvision: 0.14.0+cu116
+# Torchaudio: 0.13.0
+# MMCV: 1.7.1
+# MMDetection: 2.28.2
+# Flash-Attention: 2.3.2
+# ======================================================================================
+
+# Base image: Ubuntu 20.04 with CUDA 11.6
+FROM nvcr.io/nvidia/cuda:11.6.1-devel-ubuntu20.04
+
+# Set environment variables
+ENV DEBIAN_FRONTEND=noninteractive
+ENV PATH="/root/miniconda3/bin:$PATH"
+
+# Set the CUDA architecture list for Ampere and newer
+ENV TORCH_CUDA_ARCH_LIST="8.0 8.6+PTX"
+
+# Install system dependencies
+RUN sed -i 's|http://archive.ubuntu.com/ubuntu/|https://mirrors.tuna.tsinghua.edu.cn/ubuntu/|g' /etc/apt/sources.list \
+    && sed -i 's|http://security.ubuntu.com/ubuntu/|https://mirrors.tuna.tsinghua.edu.cn/ubuntu/|g' /etc/apt/sources.list \
+    && apt-get update && apt-get install -y \
+    wget \
+    git \
+    python3 \
+    python3-pip \
+    build-essential \
+    vim \
+    cmake \
+    libgl1-mesa-glx \
+    libglvnd0 \
+    libglib2.0-0 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Miniconda
+RUN wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O /tmp/miniconda.sh \
+    && bash /tmp/miniconda.sh -b -p /root/miniconda3 \
+    && rm /tmp/miniconda.sh \
+    && conda init bash
+
+# Configure Conda channels
+RUN echo "channels:" > ~/.condarc \
+    && echo "  - defaults" >> ~/.condarc \
+    && echo "show_channel_urls: true" >> ~/.condarc \
+    && echo "default_channels:" >> ~/.condarc \
+    && echo "  - https://mirrors.tuna.tsinghua.edu.cn/anaconda/pkgs/main" >> ~/.condarc \
+    && echo "  - https://mirrors.tuna.tsinghua.edu.cn/anaconda/pkgs/r" >> ~/.condarc \
+    && echo "  - https://mirrors.tuna.tsinghua.edu.cn/anaconda/pkgs/msys2" >> ~/.condarc \
+    && echo "custom_channels:" >> ~/.condarc \
+    && echo "  conda-forge: https://mirrors.tuna.tsinghua.edu.cn/anaconda/cloud" >> ~/.condarc \
+    && echo "  pytorch: https://mirrors.tuna.tsinghua.edu.cn/anaconda/cloud" >> ~/.condarc
+
+# Set up the Conda environment
+WORKDIR /workspace
+RUN /root/miniconda3/bin/conda create -n sparsedrive python=3.8 -y
+
+# Clone the SparseDrive repository
+RUN git clone --recursive https://github.com/charles1614/SparseDrive.git /workspace/SparseDrive
+WORKDIR /workspace/SparseDrive
+
+# Install Python dependencies
+RUN /bin/bash -c "source /root/miniconda3/bin/activate sparsedrive && \
+    pip install --upgrade pip && \
+    pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple && \
+    pip install torch==1.13.0+cu116 torchvision==0.14.0+cu116 torchaudio==0.13.0 --extra-index-url https://download.pytorch.org/whl/cu116 && \
+    wget https://github.com/open-mmlab/mmcv/archive/refs/tags/v1.7.1.tar.gz && \
+    tar -xzf v1.7.1.tar.gz && \
+    rm -rf v1.7.1.tar.gz && \
+    cd mmcv-1.7.1 && \
+    FORCE_CUDA=1 MMCV_WITH_OPS=1 pip install --no-cache-dir -e .[all] -v && \
+    cd .. && \
+    sed -i '/mmcv_full/d' /workspace/SparseDrive/requirement.txt && \
+    grep -v 'flash-attn' /workspace/SparseDrive/requirement.txt | pip install --no-cache-dir -r /dev/stdin"
+
+# Install flash-attn separately to leverage Docker layer caching, as it takes a long time to compile
+RUN /bin/bash -c "source /root/miniconda3/bin/activate sparsedrive && \
+    pip install flash-attn==2.3.2"
+
+# Download pre-trained weights
+RUN mkdir ckpt &&\ 
+    wget https://download.pytorch.org/models/resnet50-19c8e357.pth -O ckpt/resnet50-19c8e357.pt
+
+# Set the entrypoint and SSH login directory
+RUN echo "conda activate sparsedrive" >> ~/.bashrc && \
+    echo "cd /workspace/SparseDrive" >> ~/.bashrc
+
+# ======================================================================================
+# SSH Server Setup
+# --------------------------------------------------------------------------------------
+# Install and configure OpenSSH server for remote access.
+# IMPORTANT: Change 'sparsedrive123' to a secure password in production.
+# ======================================================================================
+
+# Install OpenSSH server
+RUN apt-get update && apt-get install -y openssh-server && rm -rf /var/lib/apt/lists/*
+
+# Create SSH directory and set permissions
+RUN mkdir /var/run/sshd && chmod 0755 /var/run/sshd
+
+# Set root password (IMPORTANT: Change this in production!)
+RUN echo 'root:sparsedrive123' | chpasswd
+
+# Allow root login via SSH (for development purposes)
+RUN sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config
+
+# SSH login fix
+RUN sed 's@session\s*required\s*pam_loginuid.so@session optional pam_loginuid.so@g' -i /etc/pam.d/sshd
+
+# Configure SSH to use port 2223 and allow external connections
+RUN echo "Port 2223" >> /etc/ssh/sshd_config && \
+    echo "ListenAddress 0.0.0.0" >> /etc/ssh/sshd_config && \
+    echo "PasswordAuthentication yes" >> /etc/ssh/sshd_config && \
+    echo "PermitEmptyPasswords no" >> /etc/ssh/sshd_config && \
+    echo "PubkeyAuthentication yes" >> /etc/ssh/sshd_config
+
+# Expose SSH port
+EXPOSE 2223
+
+# Set working directory
+WORKDIR /workspace/SparseDrive
+
+# Create startup script inline
+RUN echo '#!/bin/bash' > /start.sh && \
+    echo 'echo "Starting SSH service on port 2223..."' >> /start.sh && \
+    echo 'mkdir -p /var/run/sshd' >> /start.sh && \
+    echo 'chmod 0755 /var/run/sshd' >> /start.sh && \
+    echo 'echo "Testing SSH configuration..."' >> /start.sh && \
+    echo 'sshd -t' >> /start.sh && \
+    echo 'service ssh start' >> /start.sh && \
+    echo 'echo "SSH service started. Checking status..."' >> /start.sh && \
+    echo 'service ssh status' >> /start.sh && \
+    echo 'echo "Checking SSH port..."' >> /start.sh && \
+    echo 'netstat -tlnp | grep 2223 || echo "SSH port not listening yet"' >> /start.sh && \
+    echo 'echo "Activating conda environment..."' >> /start.sh && \
+    echo 'source /root/miniconda3/bin/activate sparsedrive' >> /start.sh && \
+    echo 'cd /workspace/SparseDrive' >> /start.sh && \
+    echo 'echo "Container is ready. SSH service is running on port 2223."' >> /start.sh && \
+    echo 'echo "You can connect using: ssh root@localhost -p 2223"' >> /start.sh && \
+    echo 'echo "Password: sparsedrive123"' >> /start.sh && \
+    echo 'echo "Default working directory: /workspace/SparseDrive"' >> /start.sh && \
+    echo 'exec "$@"' >> /start.sh && \
+    chmod +x /start.sh
+
+# Set the default command to keep container running
+CMD ["/start.sh", "tail", "-f", "/dev/null"]
+

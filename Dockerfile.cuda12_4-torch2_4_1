@@ -1,0 +1,103 @@
+# ======================================================================================
+# Dependencies
+# --------------------------------------------------------------------------------------
+# Base Image: Ubuntu 22.04 with CUDA 12.4
+# PyTorch: 2.4.1+cu124
+# Torchvision: 0.19.1+cu124
+# Torchaudio: 2.4.1+cu124
+# MMCV: 1.7.2 MMDetection: 2.28.2
+# Flash-Attention: 2.8.2
+# ======================================================================================
+
+# Base image: Ubuntu 22.04 with CUDA 12.4
+FROM ngc.nju.edu.cn/nvidia/cuda:12.4.1-devel-ubuntu22.04
+
+# Set environment variables
+ENV DEBIAN_FRONTEND=noninteractive
+ENV PATH="/root/miniconda3/bin:$PATH"
+
+# Set the CUDA architecture list for Ampere and newer
+ENV TORCH_CUDA_ARCH_LIST="8.0 8.6 8.7 8.9 9.0+PTX"
+
+# Install system dependencies
+RUN sed -i 's|http://archive.ubuntu.com/ubuntu/|https://mirrors.tuna.tsinghua.edu.cn/ubuntu/|g' /etc/apt/sources.list \
+    && sed -i 's|http://security.ubuntu.com/ubuntu/|https://mirrors.tuna.tsinghua.edu.cn/ubuntu/|g' /etc/apt/sources.list \
+    && apt-get update && apt-get install -y \
+    wget \
+    git \
+    python3 \
+    python3-pip \
+    build-essential \
+    vim \
+    cmake \
+    libgl1-mesa-glx \
+    libglvnd0 \
+    libglib2.0-0 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Miniconda
+RUN wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O /tmp/miniconda.sh \
+    && bash /tmp/miniconda.sh -b -p /root/miniconda3 \
+    && rm /tmp/miniconda.sh \
+    && conda init bash
+
+# Configure Conda channels
+RUN echo "channels:" > ~/.condarc \
+    && echo "  - defaults" >> ~/.condarc \
+    && echo "show_channel_urls: true" >> ~/.condarc \
+    && echo "default_channels:" >> ~/.condarc \
+    && echo "  - https://mirrors.sustech.edu.cn/anaconda/pkgs/main" >> ~/.condarc \
+    && echo "  - https://mirrors.sustech.edu.cn/anaconda/pkgs/r" >> ~/.condarc \
+    && echo "  - https://mirrors.sustech.edu.cn/anaconda/pkgs/msys2" >> ~/.condarc \
+    && echo "custom_channels:" >> ~/.condarc \
+    && echo "  conda-forge: https://mirrors.sustech.edu.cn/anaconda/cloud" >> ~/.condarc \
+    && echo "  pytorch: https://mirrors.sustech.edu.cn/anaconda/cloud" >> ~/.condarc
+
+# Set up the Conda environment
+WORKDIR /workspace
+RUN /root/miniconda3/bin/conda create -n sparsedrive python=3.9 -y
+
+# Clone the SparseDrive repository
+RUN git clone --recursive https://github.com/charles1614/SparseDrive.git /workspace/SparseDrive
+WORKDIR /workspace/SparseDrive
+
+# Install Python dependencies
+RUN /bin/bash -c "source /root/miniconda3/bin/activate sparsedrive && \
+    pip install --upgrade pip && \
+    pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple && \
+    pip install torch==2.4.1+cu124 torchvision==0.19.1+cu124 torchaudio==2.4.1+cu124 -f https://mirrors.aliyun.com/pytorch-wheels/cu124 && \
+    wget https://github.com/open-mmlab/mmcv/archive/refs/tags/v1.7.2.tar.gz && \
+    tar -xzf v1.7.2.tar.gz && \
+    rm -rf v1.7.2.tar.gz && \
+    wget https://github.com/HarborYuan/mmcv_16/commit/ad1a72fe0cbeead2716706ff618dfa0269d2cf4c.patch -O mmcv.patch && \
+    cd mmcv-1.7.2 && \
+    patch -p1 < ../mmcv.patch && \
+    rm ../mmcv.patch && \
+    FORCE_CUDA=1 MMCV_WITH_OPS=1 pip install --no-cache-dir -e .[all] -v && \
+    cd .. && \
+    sed -i '/mmcv_full/d' /workspace/SparseDrive/requirement.txt && \
+    grep -v 'flash-attn' /workspace/SparseDrive/requirement.txt | pip install --no-cache-dir -r /dev/stdin"
+
+# Install flash-attn separately to leverage Docker layer caching, as it takes a long time to compile
+RUN /bin/bash -c "source /root/miniconda3/bin/activate sparsedrive && \
+    pip install https://github.com/Dao-AILab/flash-attention/releases/download/v2.8.2/flash_attn-2.8.2+cu12torch2.4cxx11abiFALSE-cp39-cp39-linux_x86_64.whl"
+
+# Download pre-trained weights
+RUN mkdir ckpt &&\
+    wget https://download.pytorch.org/models/resnet50-19c8e357.pth -O ckpt/resnet50-19c8e357.pth
+
+# Set the entrypoint
+RUN echo "conda activate sparsedrive" >> ~/.bashrc
+
+# SSH Server Setup - Install, configure and create startup script
+RUN apt-get update && apt-get install -y openssh-server net-tools && rm -rf /var/lib/apt/lists/* && \
+    mkdir -p /var/run/sshd && chmod 0755 /var/run/sshd && \
+    echo 'root:sparsedrive123' | chpasswd && \
+    sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config && \
+    sed 's@session\s*required\s*pam_loginuid.so@session optional pam_loginuid.so@g' -i /etc/pam.d/sshd && \
+    printf "Port 22\nListenAddress 0.0.0.0\nPasswordAuthentication yes\nPermitEmptyPasswords no\nPubkeyAuthentication yes\n" >> /etc/ssh/sshd_config && \
+    printf '#!/bin/bash\necho "Starting SSH..."\nmkdir -p /var/run/sshd\nsshd -t && service ssh start\necho "SSH ready on port 22"\nsource /root/miniconda3/bin/activate sparsedrive\ncd /workspace/SparseDrive\necho "Container ready. SSH: root@localhost:22 (password: sparsedrive123)"\nexec "$@"\n' > /start.sh && chmod +x /start.sh
+
+EXPOSE 22
+WORKDIR /workspace/SparseDrive
+CMD ["/start.sh", "tail", "-f", "/dev/null"]
